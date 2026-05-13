@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Absensi — PKL Journal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-head">
+      <h1>📍 <span class="accent">Absensi</span> Harian</h1>
+      <div class="ph-sub">Catat kehadiran PKL setiap hari</div>
+    </div>
+
+    <!-- STATUS HARI INI -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:12px;"><span class="ct-icon">✅</span> Status Hari Ini</div>
+      <div id="absensi-status">Memuat...</div>
+    </div>
+
+    <!-- KEHADIRAN BERTIGA HARI INI -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-title" style="margin-bottom:12px;"><span class="ct-icon">👥</span> Kehadiran Hari Ini</div>
+      <div id="today-rekap">Memuat...</div>
+    </div>
+
+    <!-- KALENDER -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="card-head">
+        <div class="card-title"><span class="ct-icon">📅</span> Kalender — <span id="cal-label">—</span></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <select class="filter-select" id="cal-month" onchange="loadCalendar()">
+          <option value="2026-05">Mei 2026</option>
+          <option value="2026-06">Juni 2026</option>
+          <option value="2026-07">Juli 2026</option>
+          <option value="2026-08">Agustus 2026</option>
+          <option value="2026-09">September 2026</option>
+        </select>
+        <select class="filter-select" id="cal-user">
+          <option value="user_shandy">Shandy</option>
+          <option value="user_sabrina">Sabrina</option>
+          <option value="user_fahri">Fahri</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="loadCalendar()">Lihat</button>
+      </div>
+      <div id="calendar-wrap"></div>
+    </div>
+
+    <!-- REKAP SEMUA USER -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px;"><span class="ct-icon">📊</span> Rekap Kehadiran Total</div>
+      <div id="rekap-absensi">Memuat...</div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/firebase.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/absensi.js"></script>
+<script src="js/telegram.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/autodown.js"></script>
+<script>
+const user = requireSession();
+if (user.isGuest) window.location.href = "jurnal.html";
+initPage("absensi");
+
+const MONTH_LABELS = {"2026-05":"Mei 2026","2026-06":"Juni 2026","2026-07":"Juli 2026","2026-08":"Agustus 2026","2026-09":"September 2026"};
+const ALL_USERS = [
+  { uid:"user_shandy",  name:"Shandy",  color:"#dc2626" },
+  { uid:"user_sabrina", name:"Sabrina", color:"#b91c1c" },
+  { uid:"user_fahri",   name:"Fahri",   color:"#991b1b" },
+];
+
+// Set bulan default
+const nowMonth = new Date().toISOString().slice(0,7);
+const sel = document.getElementById("cal-month");
+if ([...sel.options].some(o=>o.value===nowMonth)) sel.value = nowMonth;
+document.getElementById("cal-user").value = user.uid;
+
+renderAbsensiStatus(user.uid, user.display, "absensi-status");
+
+// Today rekap
+function loadTodayRekap() {
+  const today = new Date().toISOString().slice(0,10);
+  absensiRef().child(today).once("value", snap => {
+    const data = snap.val()||{};
+    document.getElementById("today-rekap").innerHTML = ALL_USERS.map(u => {
+      const d = data[u.uid];
+      return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="width:34px;height:34px;border-radius:10px;background:${u.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;">${u.name[0]}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;">${u.name}</div>
+          ${d ? `<div style="font-size:11px;color:var(--green);">✅ Hadir · Jam ${d.jam}</div>` : `<div style="font-size:11px;color:var(--text-3);">❌ Belum absen</div>`}
+        </div>
+        <div style="width:8px;height:8px;border-radius:50%;background:${d?"var(--green)":"var(--border2)"};${d?"box-shadow:0 0 6px var(--green);":""}"></div>
+      </div>`;
+    }).join("");
+  });
+}
+loadTodayRekap();
+setInterval(loadTodayRekap, 30000);
+
+// Calendar
+function loadCalendar() {
+  const month   = document.getElementById("cal-month").value;
+  const selUid  = document.getElementById("cal-user").value;
+  document.getElementById("cal-label").textContent = MONTH_LABELS[month]||month;
+
+  loadAbsensiMonth(month, data => {
+    const [y,m] = month.split("-").map(Number);
+    const firstDay   = new Date(y,m-1,1).getDay();
+    const daysInMonth= new Date(y,m,0).getDate();
+    const today      = new Date(); today.setHours(0,0,0,0);
+    const days       = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
+
+    let html = days.map(d=>`<div class="cal-head">${d}</div>`).join("");
+    for(let i=0;i<firstDay;i++) html+=`<div class="cal-day empty"></div>`;
+
+    for(let d=1;d<=daysInMonth;d++){
+      const dateStr = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      const date    = new Date(y,m-1,d);
+      const dow     = date.getDay();
+      const isToday = date.toDateString()===today.toDateString();
+      const isFuture= date>today;
+      const isWeek  = dow===0||dow===6;
+      const hadir   = data[dateStr]&&data[dateStr][selUid];
+      let cls = isToday?"today":isFuture?"future":hadir?"hadir":"";
+      if(isWeek&&!isToday) cls+=" weekend";
+      html+=`<div class="cal-day ${cls}" title="${dateStr}${hadir?" · Jam "+data[dateStr][selUid].jam:""}">${d}</div>`;
+    }
+    document.getElementById("calendar-wrap").innerHTML = `<div class="cal-grid">${html}</div>`;
+  });
+}
+loadCalendar();
+
+// Rekap total
+loadAbsensiAll(data => {
+  const cnt = {}; ALL_USERS.forEach(u=>cnt[u.uid]=0);
+  Object.values(data).forEach(day => ALL_USERS.forEach(u=>{ if(day[u.uid]) cnt[u.uid]++; }));
+  document.getElementById("rekap-absensi").innerHTML = ALL_USERS.map(u=>{
+    const pct = Math.min(Math.round(cnt[u.uid]/108*100),100);
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:${u.color};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;">${u.name[0]}</div>
+        <span style="font-size:13px;font-weight:600;">${u.name}</span>
+        <span style="margin-left:auto;font-size:12px;font-weight:700;color:var(--green);">${cnt[u.uid]} hari (${pct}%)</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${u.color};"></div></div>
+    </div>`;
+  }).join("");
+});
+</script>
+</body>
+</html>

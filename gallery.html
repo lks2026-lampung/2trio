@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Gallery — PKL Journal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-head">
+      <h1>📸 Gallery <span class="accent">PKL</span></h1>
+      <div class="ph-sub">Kenangan selama PKL di Sentra Computer</div>
+    </div>
+
+    <!-- Guest banner -->
+    <div class="guest-banner" id="guest-banner" style="display:none;">
+      👁 Kamu masuk sebagai tamu. Hanya bisa melihat gallery, tidak bisa upload atau hapus foto.
+    </div>
+
+    <!-- UPLOAD (non-guest only) -->
+    <div id="upload-section">
+      <div class="upload-zone" id="upload-zone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <div class="uz-icon">📷</div>
+        <div class="uz-text">Tap atau drag foto ke sini</div>
+        <div class="uz-sub">JPG, PNG, WEBP · Maks 5MB per foto</div>
+      </div>
+      <input type="file" id="file-input" accept="image/*" multiple style="display:none;" onchange="handleFile(event)">
+
+      <!-- Caption form -->
+      <div class="card" id="caption-form" style="display:none;margin-top:10px;margin-bottom:0;">
+        <div class="card-title" style="margin-bottom:12px;"><span class="ct-icon">✏️</span> Keterangan Foto</div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label>Caption <span class="label-hint">(opsional)</span></label>
+          <input type="text" id="caption-input" placeholder="Contoh: Hari pertama PKL..." maxlength="100">
+        </div>
+        <div id="upload-prog" style="display:none;margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-3);margin-bottom:5px;" id="upload-status">Uploading...</div>
+          <div class="bar-track"><div class="bar-fill" id="upload-bar" style="width:0%;background:var(--red);"></div></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" id="btn-upload" onclick="uploadPending()">📤 Upload Foto</button>
+          <button class="btn btn-outline" onclick="cancelUpload()">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILTER + COUNT -->
+    <div class="filter-bar" style="margin-top:14px;">
+      <select class="filter-select" id="filter-user" onchange="loadGallery()">
+        <option value="">Semua</option>
+        <option value="Shandy">Shandy</option>
+        <option value="Sabrina">Sabrina</option>
+        <option value="Fahri">Fahri</option>
+      </select>
+      <span style="font-size:12px;color:var(--text-3);" id="photo-count">0 foto</span>
+      <button class="btn btn-outline btn-sm" onclick="toggleSlideshow()" id="btn-slideshow">▶ Slideshow</button>
+    </div>
+
+    <!-- GALLERY GRID -->
+    <div id="gallery-grid" class="gallery-grid">
+      <div class="empty" style="grid-column:1/-1;">
+        <div class="empty-icon">📷</div>
+        <div class="empty-text">Belum ada foto. Upload yuk!</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox(event)">
+  <button class="lb-close" onclick="closeLightbox()">✕</button>
+  <img id="lb-img" src="" alt="">
+  <div class="lb-info">
+    <div class="lb-name" id="lb-name"></div>
+    <div class="lb-caption" id="lb-caption"></div>
+    <div class="lb-date" id="lb-date"></div>
+  </div>
+</div>
+
+<!-- Slideshow overlay -->
+<div id="slideshow-overlay" style="display:none;position:fixed;inset:0;background:#000;z-index:9998;flex-direction:column;align-items:center;justify-content:center;">
+  <button onclick="toggleSlideshow()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.1);border:none;color:#fff;font-size:16px;padding:8px 14px;border-radius:8px;cursor:pointer;">✕ Stop</button>
+  <img id="ss-img" src="" style="max-width:92vw;max-height:80vh;object-fit:contain;border-radius:8px;transition:opacity .5s;">
+  <div style="margin-top:16px;text-align:center;color:rgba(255,255,255,.7);">
+    <div id="ss-name" style="font-size:14px;font-weight:600;color:#fff;"></div>
+    <div id="ss-caption" style="font-size:12px;margin-top:3px;font-style:italic;"></div>
+    <div id="ss-counter" style="font-size:11px;margin-top:6px;opacity:.4;"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/firebase.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/telegram.js"></script>
+<script src="js/autodown.js"></script>
+<script>
+const CL_CLOUD  = "duatrj8p3";
+const CL_PRESET = "sentra";
+const CL_URL    = `https://api.cloudinary.com/v1_1/${CL_CLOUD}/image/upload`;
+
+const user = requireSession();
+initPage("gallery");
+
+// Guest mode
+if (user.isGuest) {
+  document.getElementById("upload-section").style.display = "none";
+  document.getElementById("guest-banner").style.display  = "flex";
+}
+
+let pendingFiles = [];
+let allPhotos    = [];
+let ssInterval   = null;
+let ssIndex      = 0;
+
+// Drag drop
+function onDragOver(e) { e.preventDefault(); document.getElementById("upload-zone").classList.add("drag"); }
+function onDragLeave(e){ document.getElementById("upload-zone").classList.remove("drag"); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById("upload-zone").classList.remove("drag");
+  const files = Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith("image/"));
+  if (files.length) prepareUpload(files);
+}
+function handleFile(e) {
+  const files = Array.from(e.target.files).filter(f=>f.type.startsWith("image/"));
+  if (files.length) prepareUpload(files);
+  e.target.value = "";
+}
+function prepareUpload(files) {
+  if (files.some(f=>f.size>5*1024*1024)) { showToast("Ada foto > 5MB!","error"); return; }
+  pendingFiles = files;
+  document.getElementById("caption-form").style.display = "block";
+  document.getElementById("caption-input").value = "";
+  document.getElementById("caption-input").focus();
+}
+function cancelUpload() {
+  pendingFiles = [];
+  document.getElementById("caption-form").style.display = "none";
+}
+
+async function uploadPending() {
+  if (!pendingFiles.length) return;
+  const caption  = document.getElementById("caption-input").value.trim();
+  const prog     = document.getElementById("upload-prog");
+  const bar      = document.getElementById("upload-bar");
+  const statusEl = document.getElementById("upload-status");
+  const btn      = document.getElementById("btn-upload");
+
+  prog.style.display = "block";
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Uploading...`;
+
+  for (let i=0; i<pendingFiles.length; i++) {
+    const file = pendingFiles[i];
+    statusEl.textContent = `Upload ${i+1}/${pendingFiles.length} · ${file.name}`;
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", CL_PRESET);
+      fd.append("folder", "pkl_sentra");
+      const res  = await fetch(CL_URL, { method:"POST", body:fd });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message);
+
+      await galleryRef().push({
+        url:        data.secure_url,
+        publicId:   data.public_id,
+        caption,
+        userName:   user.display,
+        uid:        user.uid,
+        uploadedAt: Date.now(),
+        tanggal:    new Date().toISOString().slice(0,10),
+      });
+
+      bar.style.width = Math.round((i+1)/pendingFiles.length*100)+"%";
+      notifyPhoto(user.display, caption);
+    } catch(err) {
+      showToast("Gagal upload: "+err.message, "error");
+    }
+  }
+
+  showToast(`${pendingFiles.length} foto berhasil diupload! 📸`, "success");
+  launchConfetti(30);
+  pendingFiles = [];
+  prog.style.display = "none";
+  bar.style.width = "0%";
+  btn.disabled = false;
+  btn.textContent = "📤 Upload Foto";
+  document.getElementById("caption-form").style.display = "none";
+  loadGallery();
+}
+
+// Load gallery
+function loadGallery() {
+  const filterUser = document.getElementById("filter-user").value;
+  galleryRef().orderByChild("uploadedAt").on("value", snap => {
+    const items = [];
+    snap.forEach(c => {
+      const d = c.val();
+      if (!filterUser || d.userName === filterUser) items.unshift({ key:c.key, ...d });
+    });
+    allPhotos = items;
+    document.getElementById("photo-count").textContent = items.length+" foto";
+
+    const grid = document.getElementById("gallery-grid");
+    if (!items.length) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><div class="empty-icon">📷</div><div class="empty-text">Belum ada foto.</div></div>`;
+      return;
+    }
+
+    grid.innerHTML = items.map(item => `
+      <div class="gallery-item" onclick="openLightbox('${item.key}')">
+        <img src="${item.url}" alt="${esc(item.caption||"")}" loading="lazy">
+        <div class="gal-overlay">
+          <div class="gal-name">${esc(item.userName||"")}</div>
+          ${item.caption ? `<div class="gal-caption">${esc(item.caption)}</div>` : ""}
+          <div class="gal-date">${item.tanggal||""}</div>
+        </div>
+        ${!user.isGuest && item.uid===user.uid
+          ? `<button class="gal-del" onclick="deletePhoto(event,'${item.key}','${esc(item.publicId||"")}')">🗑</button>`
+          : ""}
+      </div>`).join("");
+  });
+}
+loadGallery();
+
+// Lightbox
+function openLightbox(key) {
+  const item = allPhotos.find(p=>p.key===key);
+  if (!item) return;
+  document.getElementById("lb-img").src            = item.url;
+  document.getElementById("lb-name").textContent   = item.userName||"";
+  document.getElementById("lb-caption").textContent= item.caption||"";
+  document.getElementById("lb-date").textContent   = item.tanggal||"";
+  document.getElementById("lightbox").classList.add("open");
+}
+function closeLightbox(e) {
+  if (!e || e.target.id==="lightbox" || e.currentTarget.tagName==="BUTTON") {
+    document.getElementById("lightbox").classList.remove("open");
+    document.getElementById("lb-img").src = "";
+  }
+}
+
+// Delete photo
+async function deletePhoto(e, key, publicId) {
+  e.stopPropagation();
+  if (!confirm("Hapus foto ini? Tidak bisa dibatalkan.")) return;
+  try {
+    await galleryRef().child(key).remove();
+    showToast("Foto berhasil dihapus ✓", "success");
+    loadGallery();
+  } catch(err) {
+    showToast("Gagal hapus: "+err.message, "error");
+  }
+}
+
+// Slideshow
+function toggleSlideshow() {
+  const overlay = document.getElementById("slideshow-overlay");
+  const btn     = document.getElementById("btn-slideshow");
+  if (ssInterval) {
+    clearInterval(ssInterval);
+    ssInterval = null;
+    overlay.style.display = "none";
+    btn.textContent = "▶ Slideshow";
+  } else {
+    if (!allPhotos.length) { showToast("Belum ada foto!", "error"); return; }
+    overlay.style.display = "flex";
+    btn.textContent = "⏹ Stop";
+    ssIndex = 0;
+    showSlide(ssIndex);
+    ssInterval = setInterval(() => { ssIndex=(ssIndex+1)%allPhotos.length; showSlide(ssIndex); }, 3000);
+  }
+}
+
+function showSlide(i) {
+  const item = allPhotos[i];
+  if (!item) return;
+  const img = document.getElementById("ss-img");
+  img.style.opacity = "0";
+  setTimeout(() => {
+    img.src = item.url;
+    document.getElementById("ss-name").textContent    = item.userName||"";
+    document.getElementById("ss-caption").textContent = item.caption||"";
+    document.getElementById("ss-counter").textContent = `${i+1} / ${allPhotos.length}`;
+    img.style.opacity = "1";
+  }, 300);
+}
+
+function esc(s) {
+  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+</script>
+</body>
+</html>

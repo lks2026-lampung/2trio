@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>PKL Journal — Sentra Computer</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="login-page">
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="login-brand-icon">📓</div>
+      <h1>PKL Journal</h1>
+      <p>Sentra Computer · 2026</p>
+    </div>
+    <div class="login-card">
+      <div class="user-grid">
+        <button class="user-btn" data-user="shandy" onclick="selectUser('shandy')">
+          <div class="ub-av" style="background:linear-gradient(135deg,#dc2626,#b91c1c);">S</div>
+          <span class="ub-name">Shandy</span>
+        </button>
+        <button class="user-btn" data-user="sabrina" onclick="selectUser('sabrina')">
+          <div class="ub-av" style="background:linear-gradient(135deg,#b91c1c,#991b1b);">Sa</div>
+          <span class="ub-name">Sabrina</span>
+        </button>
+        <button class="user-btn" data-user="fahri" onclick="selectUser('fahri')">
+          <div class="ub-av" style="background:linear-gradient(135deg,#991b1b,#7f1d1d);">F</div>
+          <span class="ub-name">Fahri</span>
+        </button>
+      </div>
+      <div class="divider">MASUKKAN PASSWORD</div>
+      <div id="login-error" class="login-error"></div>
+      <div class="form-group" style="margin-bottom:14px;">
+        <label>Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="password" placeholder="••••••••"
+                 autocomplete="current-password"
+                 onkeydown="if(event.key==='Enter')doLogin()">
+          <button class="pw-toggle" type="button" onclick="togglePw()">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()" id="btn-login">
+        <span id="btn-text">Masuk</span>
+        <span class="spinner" id="login-spinner" style="display:none;"></span>
+      </button>
+      <button class="guest-btn" onclick="showGuestModal()">👁 Masuk sebagai Tamu</button>
+    </div>
+    <div class="login-footer">PKL 4 Mei — 25 September 2026 · Sentra Computer</div>
+  </div>
+</div>
+
+<!-- Guest modal -->
+<div class="modal-bg" id="guest-modal">
+  <div class="modal">
+    <div class="modal-title">👁 Login Tamu</div>
+    <div class="modal-sub">Masukkan nama kamu. Sebagai tamu kamu hanya bisa melihat jurnal, rekap, dan gallery — tidak bisa menginput data apapun.</div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label>Nama Kamu</label>
+      <input type="text" id="guest-name" placeholder="Nama lengkap kamu..." maxlength="30"
+             onkeydown="if(event.key==='Enter')doGuestLogin()">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="doGuestLogin()">Masuk sebagai Tamu</button>
+      <button class="btn btn-outline" onclick="closeGuestModal()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/firebase.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/telegram.js"></script>
+<script src="js/autodown.js"></script>
+<script>
+if (getSession()) window.location.href = "dashboard.html";
+
+let selectedUser = null;
+
+function selectUser(u) {
+  selectedUser = u;
+  document.querySelectorAll(".user-btn").forEach(b => b.classList.toggle("sel", b.dataset.user===u));
+  document.getElementById("password").focus();
+}
+
+function togglePw() {
+  const pw = document.getElementById("password");
+  pw.type = pw.type==="password" ? "text" : "password";
+}
+
+async function doLogin() {
+  const errEl   = document.getElementById("login-error");
+  const btnText = document.getElementById("btn-text");
+  const spinner = document.getElementById("login-spinner");
+  errEl.style.display = "none";
+
+  if (!selectedUser) { errEl.textContent="Pilih nama kamu dulu!"; errEl.style.display="block"; return; }
+  const pw = document.getElementById("password").value;
+  if (!pw) { errEl.textContent="Password tidak boleh kosong."; errEl.style.display="block"; return; }
+
+  btnText.style.display = "none";
+  spinner.style.display = "inline-block";
+  document.getElementById("btn-login").disabled = true;
+
+  try {
+    const user = await loginUser(selectedUser, pw);
+    setSession(user);
+    await notifyLogin(user.display);
+    window.location.href = "dashboard.html";
+  } catch(e) {
+    btnText.style.display  = "inline";
+    spinner.style.display  = "none";
+    document.getElementById("btn-login").disabled = false;
+    errEl.textContent = e.message;
+    errEl.style.display = "block";
+  }
+}
+
+function showGuestModal() {
+  document.getElementById("guest-modal").classList.add("open");
+  setTimeout(()=>document.getElementById("guest-name").focus(), 100);
+}
+function closeGuestModal() {
+  document.getElementById("guest-modal").classList.remove("open");
+}
+
+async function doGuestLogin() {
+  const name = document.getElementById("guest-name").value.trim();
+  if (!name) { document.getElementById("guest-name").focus(); return; }
+  sessionStorage.setItem("pkl_session", JSON.stringify({
+    username:"guest", display:name,
+    uid:"guest_"+Date.now(),
+    color:"#dc2626", avatar:name[0].toUpperCase(), isGuest:true
+  }));
+  await notifyLogin(`[TAMU] ${name}`);
+  window.location.href = "jurnal.html";
+}
+
+function showToast(msg, type="info") {
+  const c = document.getElementById("toast-container");
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  setTimeout(()=>el.remove(), 3000);
+}
+</script>
+</body>
+</html>

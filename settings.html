@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Pengaturan — PKL Journal</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+
+    <div class="page-head">
+      <h1>⚙ <span class="accent">Pengaturan</span></h1>
+      <div class="ph-sub">Kelola akun, preferensi, dan data kamu</div>
+    </div>
+
+    <!-- PROFIL -->
+    <div class="settings-section">
+      <div class="settings-head">👤 Profil Aktif</div>
+      <div class="profile-info">
+        <div style="width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;color:#fff;flex-shrink:0;" id="prof-av">?</div>
+        <div>
+          <div class="pi-name" id="prof-name">—</div>
+          <div class="pi-meta" id="prof-meta">—</div>
+        </div>
+      </div>
+      <div style="background:var(--bg);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--text-2);line-height:1.9;" id="session-info">Memuat...</div>
+    </div>
+
+    <!-- GANTI PASSWORD -->
+    <div class="settings-section">
+      <div class="settings-head">🔑 Ganti Password</div>
+      <div class="form-grid">
+        <div class="form-group form-full">
+          <label>Password Lama</label>
+          <div class="pw-wrap">
+            <input type="password" id="pw-old" placeholder="Password saat ini">
+            <button class="pw-toggle" onclick="togglePw('pw-old')">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Password Baru</label>
+          <div class="pw-wrap">
+            <input type="password" id="pw-new" placeholder="Min. 6 karakter" oninput="checkStrength()">
+            <button class="pw-toggle" onclick="togglePw('pw-new')">👁</button>
+          </div>
+          <div class="pw-strength"><div class="pw-strength-bar" id="pw-bar"></div></div>
+          <div class="pw-strength-lbl" id="pw-lbl"></div>
+        </div>
+        <div class="form-group">
+          <label>Konfirmasi Password</label>
+          <div class="pw-wrap">
+            <input type="password" id="pw-confirm" placeholder="Ulangi password baru">
+            <button class="pw-toggle" onclick="togglePw('pw-confirm')">👁</button>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="gantiPassword()">🔑 Simpan Password</button>
+    </div>
+
+    <!-- HARI LIBUR -->
+    <div class="settings-section">
+      <div class="settings-head">📅 Pengaturan Hari Libur</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px;">Pilih hari yang dihitung sebagai libur (tidak masuk hari kerja PKL)</div>
+      <div class="holiday-grid" id="holiday-days"></div>
+      <div style="margin-top:14px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-2);margin-bottom:8px;">Tanggal Libur Khusus</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input type="date" id="holiday-date" style="flex:1;">
+          <button class="btn btn-primary btn-sm" onclick="addHoliday()">+ Tambah</button>
+        </div>
+        <div id="holiday-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+    </div>
+
+    <!-- STATISTIK AKUN -->
+    <div class="settings-section">
+      <div class="settings-head">📊 Statistik Akun</div>
+      <div class="grid-4">
+        <div class="stat-card sc-red"><div class="sc-label">Total Entri</div><div class="sc-value" id="s-total">—</div></div>
+        <div class="stat-card sc-amber"><div class="sc-label">Hari Aktif</div><div class="sc-value" id="s-hari">—</div></div>
+        <div class="stat-card sc-green"><div class="sc-label">Minggu Ini</div><div class="sc-value" id="s-week">—</div></div>
+        <div class="stat-card sc-black"><div class="sc-label">Favorit</div><div class="sc-value" id="s-kat" style="font-size:13px;padding-top:8px;">—</div></div>
+      </div>
+    </div>
+
+    <!-- EXPORT -->
+    <div class="settings-section">
+      <div class="settings-head">💾 Export Data Jurnal</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Download semua jurnal kamu untuk backup.</div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="exportJSON()">📄 Export JSON</button>
+        <button class="btn btn-outline" onclick="exportCSV()">📊 Export CSV</button>
+      </div>
+    </div>
+
+    <!-- YEARBOOK -->
+    <div class="settings-section">
+      <div class="settings-head">🎓 PKL Yearbook</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Kartu kenangan PKL kamu — auto-generate dari data jurnal.</div>
+      <div id="yearbook-wrap"></div>
+    </div>
+
+    <!-- DANGER ZONE -->
+    <div class="settings-section" style="border-color:#fecaca;">
+      <div class="settings-head" style="color:var(--red);">⚠️ Danger Zone</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Hapus semua data jurnalmu. <strong style="color:var(--red);">Tidak bisa dibatalkan!</strong></div>
+      <button class="btn btn-danger" onclick="confirmHapus()">🗑️ Hapus Semua Data Jurnal Saya</button>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="js/firebase.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/journal.js"></script>
+<script src="js/streak.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/telegram.js"></script>
+<script src="js/autodown.js"></script>
+<script>
+const user = requireSession();
+if (user.isGuest) window.location.href = "jurnal.html";
+initPage("settings");
+
+// Profile
+const av = document.getElementById("prof-av");
+av.textContent = user.avatar; av.style.background = user.color;
+document.getElementById("prof-name").textContent = user.display;
+document.getElementById("prof-meta").textContent = `${user.username} · Peserta PKL · Sentra Computer`;
+document.getElementById("session-info").innerHTML = `
+  UID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: <code>${user.uid}</code><br>
+  Status&nbsp;&nbsp;: ✅ Aktif<br>
+  Login&nbsp;&nbsp;&nbsp;: ${new Date().toLocaleString("id-ID",{timeZone:"Asia/Jakarta",weekday:"long",day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"})}`;
+
+// Stats
+countEntries(user.uid, n => document.getElementById("s-total").textContent = n);
+weekStreak(user.uid, n => document.getElementById("s-week").textContent = n);
+journalRef().once("value", snap => {
+  const days=new Set(); const kat={};
+  snap.forEach(c => {
+    const d=c.val();
+    if(d.uid===user.uid){ if(d.tanggal) days.add(d.tanggal); if(d.kategori) kat[d.kategori]=(kat[d.kategori]||0)+1; }
+  });
+  document.getElementById("s-hari").textContent = days.size;
+  const topKat = Object.entries(kat).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById("s-kat").textContent = topKat?topKat[0]:"—";
+});
+
+// Password toggle
+function togglePw(id) { const el=document.getElementById(id); el.type=el.type==="password"?"text":"password"; }
+
+// Strength checker
+function checkStrength() {
+  const pw  = document.getElementById("pw-new").value;
+  const bar = document.getElementById("pw-bar");
+  const lbl = document.getElementById("pw-lbl");
+  if (!pw) { bar.style.width="0%"; lbl.textContent=""; return; }
+  let score = 0;
+  if (pw.length >= 6)  score++;
+  if (pw.length >= 10) score++;
+  if (/[A-Z]/.test(pw)) score++;
+  if (/[0-9]/.test(pw)) score++;
+  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const lvls = [
+    {pct:"20%",color:"#dc2626",label:"Sangat Lemah"},
+    {pct:"40%",color:"#ef4444",label:"Lemah"},
+    {pct:"60%",color:"#d97706",label:"Cukup"},
+    {pct:"80%",color:"#16a34a",label:"Kuat"},
+    {pct:"100%",color:"#15803d",label:"Sangat Kuat 💪"},
+  ];
+  const lv = lvls[Math.min(score-1,4)]||lvls[0];
+  bar.style.cssText = `width:${lv.pct};background:${lv.color};`;
+  lbl.style.color = lv.color; lbl.textContent = lv.label;
+}
+
+// Ganti password (Firebase DB)
+async function gantiPassword() {
+  const oldPw  = document.getElementById("pw-old").value;
+  const newPw  = document.getElementById("pw-new").value;
+  const confPw = document.getElementById("pw-confirm").value;
+  if (!oldPw||!newPw||!confPw) { showToast("Semua field wajib diisi!", "error"); return; }
+  if (newPw.length < 6) { showToast("Password baru minimal 6 karakter!", "error"); return; }
+  if (newPw !== confPw) { showToast("Konfirmasi password tidak cocok!", "error"); return; }
+  if (newPw === oldPw)  { showToast("Password baru sama dengan yang lama!", "error"); return; }
+  try {
+    const snap    = await db.ref(`passwords/${user.username}`).once("value");
+    const savedPw = snap.val() || USERS[user.username]?.password;
+    if (savedPw !== oldPw) { showToast("Password lama salah!", "error"); return; }
+    await db.ref(`passwords/${user.username}`).set(newPw);
+    document.getElementById("pw-old").value = "";
+    document.getElementById("pw-new").value = "";
+    document.getElementById("pw-confirm").value = "";
+    document.getElementById("pw-bar").style.width = "0%";
+    document.getElementById("pw-lbl").textContent = "";
+    showToast("Password berhasil diubah! Berlaku di semua device ✓", "success");
+  } catch(e) { showToast("Gagal: "+e.message, "error"); }
+}
+
+// ── Hari Libur ────────────────────────────────────────────
+const HARI_NAMES = ["Minggu","Senin","Selasa","Rabu","Kamis","Jumat","Sabtu"];
+let holidayDays = JSON.parse(localStorage.getItem("pkl_holiday_days")||"[0,6]");
+let customHolidays = JSON.parse(localStorage.getItem("pkl_holidays")||"[]");
+
+function renderHolidayDays() {
+  document.getElementById("holiday-days").innerHTML = HARI_NAMES.map((n,i) => `
+    <button class="holiday-btn ${holidayDays.includes(i)?"on":""}" onclick="toggleHolidayDay(${i})">${n}</button>
+  `).join("");
+}
+
+function toggleHolidayDay(i) {
+  if (holidayDays.includes(i)) holidayDays = holidayDays.filter(d=>d!==i);
+  else holidayDays.push(i);
+  localStorage.setItem("pkl_holiday_days", JSON.stringify(holidayDays));
+  renderHolidayDays();
+  showToast("Pengaturan hari libur disimpan ✓", "success");
+}
+
+function addHoliday() {
+  const date = document.getElementById("holiday-date").value;
+  if (!date) return;
+  if (!customHolidays.includes(date)) { customHolidays.push(date); customHolidays.sort(); }
+  localStorage.setItem("pkl_holidays", JSON.stringify(customHolidays));
+  renderCustomHolidays();
+  document.getElementById("holiday-date").value = "";
+  showToast("Tanggal libur ditambahkan ✓", "success");
+}
+
+function removeHoliday(date) {
+  customHolidays = customHolidays.filter(d=>d!==date);
+  localStorage.setItem("pkl_holidays", JSON.stringify(customHolidays));
+  renderCustomHolidays();
+}
+
+function renderCustomHolidays() {
+  document.getElementById("holiday-list").innerHTML = customHolidays.map(d => `
+    <div style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:4px 10px;font-size:11px;">
+      <span style="font-family:var(--mono);">${d}</span>
+      <button onclick="removeHoliday('${d}')" style="background:none;border:none;cursor:pointer;color:var(--red);font-size:12px;padding:0;">✕</button>
+    </div>`).join("");
+}
+
+renderHolidayDays();
+renderCustomHolidays();
+
+// Export
+function exportJSON() {
+  journalRef().once("value", snap => {
+    const data=[]; snap.forEach(c=>{ const d=c.val(); if(d.uid===user.uid) data.push({id:c.key,...d}); });
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=`jurnal_pkl_${user.display.toLowerCase()}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); showToast("Export JSON berhasil! 📄","success");
+  });
+}
+
+function exportCSV() {
+  journalRef().once("value", snap => {
+    const rows=[["No","Tanggal","Hari ke-","Kategori","Kegiatan","Keterangan","Mood","Dibuat"]];
+    let i=1;
+    snap.forEach(c => {
+      const d=c.val(); if(d.uid!==user.uid) return;
+      rows.push([i++,d.tanggal||"",d.hariKe||"",d.kategori||"",`"${(d.kegiatan||"").replace(/"/g,'""')}"`,`"${(d.keterangan||"").replace(/"/g,'""')}"`,d.mood||"",d.createdAt?new Date(d.createdAt).toLocaleString("id-ID"):""]);
+    });
+    const csv=rows.map(r=>r.join(",")).join("\n");
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download=`jurnal_pkl_${user.display.toLowerCase()}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); showToast("Export CSV berhasil! 📊","success");
+  });
+}
+
+// Yearbook
+journalRef().once("value", snap => {
+  let entries=0; const days=new Set(); const katMap={}; const moodMap={};
+  snap.forEach(c => {
+    const d=c.val(); if(d.uid!==user.uid) return;
+    entries++; if(d.tanggal) days.add(d.tanggal);
+    if(d.kategori) katMap[d.kategori]=(katMap[d.kategori]||0)+1;
+    if(d.mood) moodMap[d.mood]=(moodMap[d.mood]||0)+1;
+  });
+  const topKat  = Object.entries(katMap).sort((a,b)=>b[1]-a[1])[0];
+  const topMood = Object.entries(moodMap).sort((a,b)=>b[1]-a[1])[0];
+  const MOOD_EMOJI = { produktif:"🔥",seru:"⚡",belajar:"🧠",biasa:"😐",lelah:"😴" };
+  calculateStreak(user.display).then(streak => {
+    document.getElementById("yearbook-wrap").innerHTML = `
+      <div style="background:linear-gradient(135deg,var(--bg),var(--bg2));border:1px solid var(--border);border-radius:var(--r-xl);padding:22px;text-align:center;">
+        <div style="width:72px;height:72px;border-radius:50%;background:${user.color};display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;margin:0 auto 12px;">${user.avatar}</div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:2px;">${user.display}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:14px;">Peserta PKL · Sentra Computer · 2026</div>
+        <div class="grid-3" style="gap:8px;margin-bottom:14px;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px;">
+            <div style="font-size:22px;font-weight:800;color:var(--red);">${entries}</div>
+            <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;">Entri</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px;">
+            <div style="font-size:22px;font-weight:800;color:var(--red);">${days.size}</div>
+            <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;">Hari Aktif</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:10px;">
+            <div style="font-size:22px;font-weight:800;color:var(--red);">${streak.longest}</div>
+            <div style="font-size:9px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;">Streak Max</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-3);font-style:italic;border-top:1px solid var(--border);padding-top:12px;">
+          Kategori favorit: <strong style="color:var(--text);">${topKat?topKat[0]:"—"}</strong> · 
+          Mood dominan: ${topMood?MOOD_EMOJI[topMood[0]]:"—"} <strong style="color:var(--text);">${topMood?topMood[0]:"—"}</strong>
+        </div>
+      </div>`;
+  });
+});
+
+// Hapus semua
+function confirmHapus() {
+  const conf = prompt(`Ketik "${user.display}" untuk konfirmasi hapus semua data jurnal kamu:`);
+  if (conf === user.display) {
+    journalRef().once("value", snap => {
+      snap.forEach(c => { if(c.val().uid===user.uid) journalRef().child(c.key).remove(); });
+      showToast("Semua data jurnal berhasil dihapus.", "error");
+    });
+  } else if (conf !== null) {
+    showToast("Nama tidak cocok, hapus dibatalkan.", "error");
+  }
+}
+</script>
+</body>
+</html>
